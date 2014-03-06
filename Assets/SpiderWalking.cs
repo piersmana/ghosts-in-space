@@ -3,12 +3,19 @@ using System.Collections;
 
 public class SpiderWalking : MonoBehaviour {
 
-	public float walkSpeed = 10;
-	public float turnRate = 5;
+	public float walkSpeed = 5;
+	public float turnRate = 10;
+
+	public float stepHeight = .2f;
+	public float fallToleranceHeight = 4f;
 
 	public float knockbackThreshold = 20;
 
 	public LayerMask layers;
+
+	private RaycastHit leftRayHit;
+	private RaycastHit rightRayHit;
+	private RaycastHit conditionalRayHit;
 
 	private Rigidbody r;
 	private Transform t;
@@ -27,35 +34,43 @@ public class SpiderWalking : MonoBehaviour {
 	//Possibly need to lerp into position (rather than "snapping") before giving control to player
 
 	IEnumerator Walking() {
-		RaycastHit leftHit;
-		RaycastHit rightHit;
-
+		float walkDirection;
 		while (true) {
-			t.position += t.right * Input.GetAxis("Horizontal") * walkSpeed * Time.fixedDeltaTime;
+			walkDirection = Input.GetAxis("Horizontal");
+			t.position += t.right * walkDirection * walkSpeed * Time.fixedDeltaTime;
 			//Raycast down
-			if (checkRaycastDown(out leftHit, out rightHit)) {
+			if (checkRaycastDown()) {
 			//Position and rotate based on raycast
-				movePlayer(leftHit, rightHit);
+				if (walkDirection > 0) {
+					if (Physics.Raycast(t.position + stepHeight * t.up, t.right, out conditionalRayHit, .51f, layers)) {
+						rightRayHit = conditionalRayHit;
+					}
+				}
+				else if (walkDirection < 0) {
+					if (Physics.Raycast(t.position + stepHeight * t.up, -t.right, out conditionalRayHit, .51f, layers)) {
+						print ("hit left");
+						leftRayHit = conditionalRayHit;
+					}
+				}
+				movePlayer();
 			}
 			else {
 				//Add code here for spinning to find a foothold
-				break;
+				//break;
 			}
 
 			yield return new WaitForFixedUpdate();
 		}
 	}
 
-	bool checkRaycastDown(out RaycastHit leftHitInfo, out RaycastHit rightHitInfo) {
-		Ray leftRay = new Ray(t.position + .5f * t.right, -t.up);
-		Ray rightRay = new Ray(t.position - .5f * t.right, -t.up);
-
-		return Physics.Raycast(leftRay, out leftHitInfo, 2, layers) && Physics.Raycast(rightRay, out rightHitInfo, 2, layers);
+	bool checkRaycastDown() {
+		return Physics.Raycast(t.position + .5f * t.right + 2 * t.up, -t.up, out leftRayHit, fallToleranceHeight, layers)
+			&& Physics.Raycast(t.position - .5f * t.right + 2 * t.up, -t.up, out rightRayHit, fallToleranceHeight, layers);
 	}
 
-	void movePlayer(RaycastHit leftHitInfo, RaycastHit rightHitInfo) {
+	void movePlayer() {
 		//Sadly math is mostly found, could clean up quite a bit
-		r.MoveRotation(Quaternion.Euler (0, 0, Quaternion.RotateTowards(t.rotation, Quaternion.FromToRotation(Vector3.up, (leftHitInfo.normal + rightHitInfo.normal) / 2), turnRate).eulerAngles.z));
-		r.MovePosition(t.up + (leftHitInfo.point + rightHitInfo.point)/2);
+		r.MoveRotation(Quaternion.Euler(0, 0, Quaternion.RotateTowards(t.rotation, Quaternion.FromToRotation(Vector3.up, (leftRayHit.normal + rightRayHit.normal) / 2), turnRate).eulerAngles.z));
+		r.MovePosition(Vector3.MoveTowards(t.position, (leftRayHit.point + rightRayHit.point)/2, walkSpeed * Time.fixedDeltaTime));
 	}
 }
