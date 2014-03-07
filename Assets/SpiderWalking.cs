@@ -6,8 +6,9 @@ public class SpiderWalking : MonoBehaviour {
 	public float walkSpeed = 5;
 	public float turnRate = 10;
 
-	public float stepHeight = .2f;
-	public float fallToleranceHeight = 4f;
+	public float stepHeight = -.8f;
+	public float startSlopeAngle = 40;
+	public float fallToleranceHeight = 3f;
 
 	public float knockbackThreshold = 20;
 
@@ -39,20 +40,17 @@ public class SpiderWalking : MonoBehaviour {
 			walkDirection = Input.GetAxis("Horizontal");
 			t.position += t.right * walkDirection * walkSpeed * Time.fixedDeltaTime;
 			//Raycast down
-			if (checkRaycastDown()) {
+			if (checkDoubleRaycast(-t.up)) {
 			//Position and rotate based on raycast
-				if (walkDirection > 0) {
-					if (Physics.Raycast(t.position + stepHeight * t.up, t.right, out conditionalRayHit, .51f, layers)) {
-						rightRayHit = conditionalRayHit;
+				if (walkDirection != 0) {
+					if (Physics.Raycast(t.position + stepHeight * t.up, walkDirection > 0 ? t.right : -t.right, out conditionalRayHit, .51f, layers)) {
+						if (Vector3.Angle(conditionalRayHit.normal,t.up) >= startSlopeAngle) {
+							checkDoubleRaycast(-conditionalRayHit.normal);
+							yield return StartCoroutine("Reposition");
+						}
 					}
 				}
-				else if (walkDirection < 0) {
-					if (Physics.Raycast(t.position + stepHeight * t.up, -t.right, out conditionalRayHit, .51f, layers)) {
-						print ("hit left");
-						leftRayHit = conditionalRayHit;
-					}
-				}
-				movePlayer();
+				movePlayer(getTargetRotation(), getTargetPosition());
 			}
 			else {
 				//Add code here for spinning to find a foothold
@@ -63,14 +61,45 @@ public class SpiderWalking : MonoBehaviour {
 		}
 	}
 
-	bool checkRaycastDown() {
-		return Physics.Raycast(t.position + .5f * t.right + 2 * t.up, -t.up, out leftRayHit, fallToleranceHeight, layers)
-			&& Physics.Raycast(t.position - .5f * t.right + 2 * t.up, -t.up, out rightRayHit, fallToleranceHeight, layers);
+	bool checkDoubleRaycast(Vector3 direction) {
+		Vector3 perpVector = .5f * Vector3.Cross(direction,Vector3.forward);
+
+		return Physics.Raycast(t.position + perpVector, direction, out leftRayHit, fallToleranceHeight, layers)
+			&& Physics.Raycast(t.position - perpVector, direction, out rightRayHit, fallToleranceHeight, layers);
 	}
 
-	void movePlayer() {
-		//Sadly math is mostly found, could clean up quite a bit
-		r.MoveRotation(Quaternion.Euler(0, 0, Quaternion.RotateTowards(t.rotation, Quaternion.FromToRotation(Vector3.up, (leftRayHit.normal + rightRayHit.normal) / 2), turnRate).eulerAngles.z));
-		r.MovePosition(Vector3.MoveTowards(t.position, (leftRayHit.point + rightRayHit.point)/2, walkSpeed * Time.fixedDeltaTime));
+	bool movePlayer(Quaternion targetRotation, Vector3 targetPosition) {
+		if (t.rotation == targetRotation && t.position == targetPosition)
+			return true;
+
+		if (t.rotation != targetRotation)
+			r.MoveRotation(Quaternion.Euler(0, 0, Quaternion.RotateTowards(t.rotation, targetRotation, turnRate).eulerAngles.z));
+		if (t.position != targetPosition)
+			r.MovePosition(Vector3.MoveTowards(t.position, targetPosition, walkSpeed * Time.fixedDeltaTime));
+
+		return false;
+	}
+
+	IEnumerator Reposition() {
+		Quaternion targetRot = getTargetRotation();
+		Vector3 targetPos = getTargetPosition();
+
+		renderer.material.color = Color.red;
+
+		while (!movePlayer(targetRot, targetPos)) {
+			yield return new WaitForFixedUpdate();
+		}
+
+		renderer.material.color = Color.white;
+	}
+
+	Quaternion getTargetRotation() {
+		return Quaternion.FromToRotation(Vector3.up, (leftRayHit.normal + rightRayHit.normal) / 2);
+	}
+
+	Vector3 getTargetPosition() {
+		Vector3 target = (leftRayHit.normal + rightRayHit.normal) / 2 + (leftRayHit.point + rightRayHit.point)/2;
+		print (target);
+		return target;
 	}
 }
