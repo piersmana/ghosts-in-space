@@ -31,7 +31,7 @@ Transform:
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 100000}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -5.07232809, y: .616021156, z: 0}
+  m_LocalPosition: {x: -.844184399, y: 5.09617758, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
@@ -89,8 +89,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6544caf819ec79443a6f6bc6adbc6fdd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  walkSpeed: 4
-  turnRate: 5
+  walkSpeed: 2
+  turnRate: 2
   stepHeight: -.800000012
   startSlopeAngle: -40
   fallToleranceHeight: 3
@@ -98,6 +98,7 @@ MonoBehaviour:
   layers:
     serializedVersion: 2
     m_Bits: 256
+  currentlyWalking: 0
 --- !u!114 &11400002
 MonoBehaviour:
   m_ObjectHideFlags: 1

@@ -107,8 +107,12 @@ public class SpiderWalking : MonoBehaviour {
 			return true;
 		}
 
-		if (t.rotation.eulerAngles.z != targetRotation.eulerAngles.z)
-			r.MoveRotation(Quaternion.Euler(t.rotation.eulerAngles.x, t.rotation.eulerAngles.y, Quaternion.RotateTowards(t.rotation, targetRotation, turnRate).eulerAngles.z));
+		if (!Mathf.Approximately(t.rotation.eulerAngles.z,targetRotation.eulerAngles.z)) {
+			if (t.rotation.eulerAngles.z - targetRotation.eulerAngles.z < .001f)
+				t.rotation = Quaternion.Euler(t.rotation.eulerAngles.x, t.rotation.eulerAngles.y, Quaternion.RotateTowards(t.rotation, targetRotation, turnRate).eulerAngles.z);
+			else
+			    r.MoveRotation(Quaternion.Euler(t.rotation.eulerAngles.x, t.rotation.eulerAngles.y, Quaternion.RotateTowards(t.rotation, targetRotation, turnRate).eulerAngles.z));
+		}
 		if (t.position != targetPosition)
 			r.MovePosition(Vector3.MoveTowards(t.position, targetPosition, walkSpeed * Time.fixedDeltaTime));
 
