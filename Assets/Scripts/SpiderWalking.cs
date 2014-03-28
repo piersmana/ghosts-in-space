@@ -7,6 +7,7 @@ public class SpiderWalking : MonoBehaviour {
 	public float turnRate = 10;
 
 	public float stepHeight = -.8f;
+	public float stepLength = 1f;
 	public float startSlopeAngle = 40;
 	public float fallToleranceHeight = 3f;
 
@@ -19,51 +20,67 @@ public class SpiderWalking : MonoBehaviour {
 	private RaycastHit conditionalRayHit;
 
 	public bool currentlyWalking = false;
+	public bool currentlyRepositioning = false;
 
 	private Rigidbody r;
 	private Transform t;
+	private RaycastHit surfaceTarget;
 
 	void Awake() {
 		t = transform;
 		r = rigidbody;
 	}
 
-	public bool StartSpiderWalk(Vector3 attachDirection) {
-		if (!currentlyWalking && checkDoubleRaycast(attachDirection)) {
-			currentlyWalking = true;
+	public bool StartSpiderWalk() {
+		if (!currentlyWalking && RaycastFromBody() && checkDoubleRaycast(-surfaceTarget.normal)) {
 			r.isKinematic = true;
-			StartCoroutine("AttachToSurface");
+			StartCoroutine("SpiderWalk");
 			return true;
 		}
 
 		return false;
 	}
 
-	IEnumerator AttachToSurface() {
-		yield return StartCoroutine("Reposition");
-		StartCoroutine("Walking");
+	bool RaycastFromBody() {
+		Vector3 lowerorigin = t.position - .5f * t.up;
+		Vector3 upperorigin = t.position + .5f * t.up;
+		return Physics.Raycast(lowerorigin, -t.up, 					out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(lowerorigin, -t.up/2 + t.right/2, 	out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(lowerorigin, -t.up/2 - t.right/2, 	out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(lowerorigin,  t.right, 				out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(lowerorigin, -t.right, 				out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(t.position,   t.right, 				out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(t.position,  -t.right, 				out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(upperorigin,  t.right, 				out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(upperorigin, -t.right, 				out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(upperorigin,  t.up/2 + t.right/2, 	out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(upperorigin,  t.up/2 - t.right/2, 	out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(upperorigin, t.up, 					out surfaceTarget, 1f, layers);
 	}
 
 	public void StopSpiderWalk() {
 		currentlyWalking = false;
 		r.isKinematic = false;
-		StopCoroutine("Walking");
-		r.AddForce(t.up, ForceMode.Impulse);
+		//StopCoroutine("Walking");
 	}
 
 	//Add another function for transitioning into walking from freefloating
 	//Possibly need to lerp into position (rather than "snapping") before giving control to player
 
-	IEnumerator Walking() {
+	IEnumerator SpiderWalk() {
 		float walkDirection;
-		while (true) {
+		currentlyWalking = true;
+
+		yield return StartCoroutine("Reposition");
+
+		while (currentlyWalking) {
 			walkDirection = Input.GetAxis("Horizontal");
 			t.position += t.right * walkDirection * walkSpeed * Time.fixedDeltaTime;
 			//Raycast down
 			if (checkDoubleRaycast(-t.up)) {
 			//Position and rotate based on raycast
 				if (walkDirection != 0) {
-					if (Physics.Raycast(t.position + stepHeight * t.up, walkDirection > 0 ? t.right : -t.right, out conditionalRayHit, .75f, layers)) {
+					if (Physics.Raycast(t.position + stepHeight * t.up, walkDirection > 0 ? t.right : -t.right, out conditionalRayHit, stepLength, layers)) {
 						if (Vector3.Angle(conditionalRayHit.normal,t.up) >= startSlopeAngle) {
 							checkDoubleRaycast(-conditionalRayHit.normal);
 							yield return StartCoroutine("Reposition");
@@ -80,18 +97,24 @@ public class SpiderWalking : MonoBehaviour {
 
 			yield return new WaitForFixedUpdate();
 		}
+
+		currentlyWalking = false;
+		yield return new WaitForFixedUpdate();
+		r.AddForce(t.up, ForceMode.Impulse);
 	}
 	
 	IEnumerator Reposition() {
 		Quaternion targetRot = getTargetRotation();
 		Vector3 targetPos = getTargetPosition();
-		
+
+		currentlyRepositioning = true;
 		renderer.material.color = Color.red;
 		
-		while (!movePlayer(targetRot, targetPos)) {
+		while (currentlyRepositioning && currentlyWalking && !movePlayer(targetRot, targetPos)) {
 			yield return new WaitForFixedUpdate();
 		}
-		
+
+		currentlyRepositioning = false;
 		renderer.material.color = Color.white;
 	}
 

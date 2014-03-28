@@ -113,6 +113,7 @@ MonoBehaviour:
   walkSpeed: 2
   turnRate: 2
   stepHeight: -.800000012
+  stepLength: 1
   startSlopeAngle: -40
   fallToleranceHeight: 3
   knockbackThreshold: 20
@@ -120,6 +121,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 256
   currentlyWalking: 0
+  currentlyRepositioning: 0
 --- !u!54 &211380095
 Rigidbody:
   m_ObjectHideFlags: 0

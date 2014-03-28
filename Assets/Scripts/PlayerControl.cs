@@ -5,8 +5,6 @@ public class PlayerControl : MonoBehaviour {
 
 	private bool canShoot = true;
 
-	private Vector3 surfaceTarget = Vector3.zero;
-
 	private ShootingControl shootControl;
 	private GravityWalking gravityWalking;
 	private SpiderWalking spiderWalking;
@@ -35,19 +33,13 @@ public class PlayerControl : MonoBehaviour {
 		while (true) {
 			if (Input.GetKeyDown(KeyCode.E)) {
 				if (!spiderWalking.currentlyWalking) {
-					spiderWalking.StartSpiderWalk(-surfaceTarget);
+					spiderWalking.StartSpiderWalk();
 				}
 				else {
 					spiderWalking.StopSpiderWalk();
 				}
 			}
 			yield return null;
-		}
-	}
-
-	void OnCollisionEnter(Collision coll) {
-		if (coll.gameObject.layer == 8) {
-			surfaceTarget = coll.contacts[0].normal;
 		}
 	}
 }
