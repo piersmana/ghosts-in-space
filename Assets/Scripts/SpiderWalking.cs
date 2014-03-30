@@ -8,8 +8,10 @@ public class SpiderWalking : MonoBehaviour {
 
 	public float stepHeight = -.8f;
 	public float stepLength = 1f;
-	public float startSlopeAngle = 40;
+	public float startSlopeAngle = 10;
 	public float fallToleranceHeight = 3f;
+
+	public float attachSearchDistance = 1.5f;
 
 	public float knockbackThreshold = 20;
 
@@ -18,13 +20,13 @@ public class SpiderWalking : MonoBehaviour {
 	private RaycastHit leftRayHit;
 	private RaycastHit rightRayHit;
 	private RaycastHit conditionalRayHit;
+	private RaycastHit surfaceTarget;
 
 	public bool currentlyWalking = false;
 	public bool currentlyRepositioning = false;
 
 	private Rigidbody r;
 	private Transform t;
-	private RaycastHit surfaceTarget;
 
 	void Awake() {
 		t = transform;
@@ -32,7 +34,7 @@ public class SpiderWalking : MonoBehaviour {
 	}
 
 	public bool StartSpiderWalk() {
-		if (!currentlyWalking && RaycastFromBody() && checkDoubleRaycast(-surfaceTarget.normal)) {
+		if (!currentlyWalking && RaycastFromBody() && checkDoubleRaycast(-surfaceTarget.normal) != 0) { //TODO: add smart raycasting to object to stand near object edges
 			r.isKinematic = true;
 			StartCoroutine("SpiderWalk");
 			return true;
@@ -44,18 +46,18 @@ public class SpiderWalking : MonoBehaviour {
 	bool RaycastFromBody() {
 		Vector3 lowerorigin = t.position - .5f * t.up;
 		Vector3 upperorigin = t.position + .5f * t.up;
-		return Physics.Raycast(lowerorigin, -t.up, 					out surfaceTarget, 1f, layers)
-			|| Physics.Raycast(lowerorigin, -t.up/2 + t.right/2, 	out surfaceTarget, 1f, layers)
-			|| Physics.Raycast(lowerorigin, -t.up/2 - t.right/2, 	out surfaceTarget, 1f, layers)
-			|| Physics.Raycast(lowerorigin,  t.right, 				out surfaceTarget, 1f, layers)
-			|| Physics.Raycast(lowerorigin, -t.right, 				out surfaceTarget, 1f, layers)
-			|| Physics.Raycast(t.position,   t.right, 				out surfaceTarget, 1f, layers)
-			|| Physics.Raycast(t.position,  -t.right, 				out surfaceTarget, 1f, layers)
-			|| Physics.Raycast(upperorigin,  t.right, 				out surfaceTarget, 1f, layers)
-			|| Physics.Raycast(upperorigin, -t.right, 				out surfaceTarget, 1f, layers)
-			|| Physics.Raycast(upperorigin,  t.up/2 + t.right/2, 	out surfaceTarget, 1f, layers)
-			|| Physics.Raycast(upperorigin,  t.up/2 - t.right/2, 	out surfaceTarget, 1f, layers)
-			|| Physics.Raycast(upperorigin, t.up, 					out surfaceTarget, 1f, layers);
+		return Physics.Raycast(lowerorigin, -t.up * attachSearchDistance,				 	out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(lowerorigin,  (-t.up/2 + t.right/2) * attachSearchDistance, 	out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(lowerorigin,  (-t.up/2 - t.right/2) * attachSearchDistance, 	out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(lowerorigin,  t.right * attachSearchDistance, 				out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(lowerorigin, -t.right * attachSearchDistance, 				out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(t.position,   t.right * attachSearchDistance, 				out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(t.position,  -t.right * attachSearchDistance, 				out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(upperorigin,  t.right * attachSearchDistance, 				out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(upperorigin, -t.right * attachSearchDistance, 				out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(upperorigin,  (t.up/2 + t.right/2) * attachSearchDistance, 	out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(upperorigin,  (t.up/2 - t.right/2) * attachSearchDistance, 	out surfaceTarget, 1f, layers)
+			|| Physics.Raycast(upperorigin,  t.up * attachSearchDistance, 					out surfaceTarget, 1f, layers);
 	}
 
 	public void StopSpiderWalk() {
@@ -64,35 +66,36 @@ public class SpiderWalking : MonoBehaviour {
 		//StopCoroutine("Walking");
 	}
 
-	//Add another function for transitioning into walking from freefloating
-	//Possibly need to lerp into position (rather than "snapping") before giving control to player
-
 	IEnumerator SpiderWalk() {
 		float walkDirection;
+		Vector3 newPosition;
 		currentlyWalking = true;
 
 		yield return StartCoroutine("Reposition");
 
 		while (currentlyWalking) {
 			walkDirection = Input.GetAxis("Horizontal");
-			t.position += t.right * walkDirection * walkSpeed * Time.fixedDeltaTime;
-			//Raycast down
-			if (checkDoubleRaycast(-t.up)) {
-			//Position and rotate based on raycast
-				if (walkDirection != 0) {
-					if (Physics.Raycast(t.position + stepHeight * t.up, walkDirection > 0 ? t.right : -t.right, out conditionalRayHit, stepLength, layers)) {
-						if (Vector3.Angle(conditionalRayHit.normal,t.up) >= startSlopeAngle) {
-							checkDoubleRaycast(-conditionalRayHit.normal);
-							yield return StartCoroutine("Reposition");
+			newPosition = t.position + t.right * walkDirection * walkSpeed * Time.fixedDeltaTime;
+			if (isValidMove(newPosition)) {
+				t.position = newPosition; //TODO: fix jittering caused by this positioning step, ideally eliminate it
+				//Raycast down
+				if (checkDoubleRaycast(-t.up) != 0) {
+				//Position and rotate based on raycast
+					if (walkDirection != 0) {
+						if (Physics.Raycast(t.position + stepHeight * t.up, walkDirection > 0 ? t.right : -t.right, out conditionalRayHit, stepLength, layers)) {
+							if (Vector3.Angle(conditionalRayHit.normal,t.up) >= startSlopeAngle) {
+								checkDoubleRaycast(-conditionalRayHit.normal);
+								yield return StartCoroutine("Reposition");
+							}
 						}
 					}
+					movePlayer(getTargetRotation(), getTargetPosition());
 				}
-				//yield return StartCoroutine("Reposition");
-				movePlayer(getTargetRotation(), getTargetPosition());
-			}
-			else {
-				//Add code here for spinning to find a foothold
-				//break;
+				else {
+					//print ("Not surface");
+					//Add code here for spinning to find a foothold
+					//break;
+				}
 			}
 
 			yield return new WaitForFixedUpdate();
@@ -118,11 +121,20 @@ public class SpiderWalking : MonoBehaviour {
 		renderer.material.color = Color.white;
 	}
 
-	bool checkDoubleRaycast(Vector3 direction) {
-		Vector3 perpVector = .5f * Vector3.Cross(direction,Vector3.forward);
+	int checkDoubleRaycast(Vector3 direction) {
+		Vector3 perpVector = .5f * Vector3.Cross(direction,t.forward);
 
-		return Physics.Raycast(t.position + perpVector, direction, out leftRayHit, fallToleranceHeight, layers)
-			&& Physics.Raycast(t.position - perpVector, direction, out rightRayHit, fallToleranceHeight, layers);
+		if (Physics.Raycast(t.position + perpVector, direction, out leftRayHit, fallToleranceHeight, layers)
+				&& Physics.Raycast(t.position - perpVector, direction, out rightRayHit, fallToleranceHeight, layers))
+			return 2;
+		else if (Physics.Raycast(t.position, direction, out leftRayHit, fallToleranceHeight, layers)
+			    && Physics.Raycast(t.position - perpVector, direction, out rightRayHit, fallToleranceHeight, layers))
+			return 1;
+		else if (Physics.Raycast(t.position + perpVector, direction, out leftRayHit, fallToleranceHeight, layers)
+			    && Physics.Raycast(t.position, direction, out rightRayHit, fallToleranceHeight, layers))
+			return -1;
+		else 
+			return 0;
 	}
 
 	bool movePlayer(Quaternion targetRotation, Vector3 targetPosition) {
@@ -131,10 +143,11 @@ public class SpiderWalking : MonoBehaviour {
 		}
 
 		if (!Mathf.Approximately(t.rotation.eulerAngles.z,targetRotation.eulerAngles.z)) {
-			if (t.rotation.eulerAngles.z - targetRotation.eulerAngles.z < .001f)
-				t.rotation = Quaternion.Euler(t.rotation.eulerAngles.x, t.rotation.eulerAngles.y, Quaternion.RotateTowards(t.rotation, targetRotation, turnRate).eulerAngles.z);
+			//print (Quaternion.RotateTowards(t.rotation, targetRotation, turnRate * Time.fixedDeltaTime).eulerAngles.z);
+			if (Mathf.Abs(t.rotation.eulerAngles.z - targetRotation.eulerAngles.z) < .001f)
+				t.rotation = Quaternion.Euler(t.rotation.eulerAngles.x, t.rotation.eulerAngles.y, targetRotation.eulerAngles.z);
 			else
-			    r.MoveRotation(Quaternion.Euler(t.rotation.eulerAngles.x, t.rotation.eulerAngles.y, Quaternion.RotateTowards(t.rotation, targetRotation, turnRate).eulerAngles.z));
+				r.MoveRotation(Quaternion.RotateTowards(t.rotation, targetRotation, turnRate * Time.fixedDeltaTime));
 		}
 		if (t.position != targetPosition)
 			r.MovePosition(Vector3.MoveTowards(t.position, targetPosition, walkSpeed * Time.fixedDeltaTime));
@@ -145,11 +158,24 @@ public class SpiderWalking : MonoBehaviour {
 
 	//Utilities
 	Quaternion getTargetRotation() {
-		return Quaternion.FromToRotation(Vector3.up, (leftRayHit.normal + rightRayHit.normal) / 2);
+		return Quaternion.Euler(t.rotation.x, t.rotation.y, Quaternion.FromToRotation(Vector3.up, (leftRayHit.normal + rightRayHit.normal) / 2).eulerAngles.z);
 	}
 
 	Vector3 getTargetPosition() {
-		Vector3 target = (leftRayHit.normal + rightRayHit.normal) / 2 + (leftRayHit.point + rightRayHit.point)/2;
+		Vector3 direction = (leftRayHit.normal + rightRayHit.normal) / 2;
+		Vector3 target = direction + (leftRayHit.point + rightRayHit.point)/2;
+		if (!isValidMove(target)) {
+			RaycastHit newTarget;
+			Physics.SphereCast(target + direction, .1f, -direction, out newTarget, 2f, layers);
+			target = newTarget.point;
+		}
 		return target;
 	}
+
+	bool isValidMove(Vector3 newPos) {
+		return !Physics.CheckCapsule(newPos + t.up * .49f, newPos - t.up * .49f, .5f, layers);
+	}
+
+	//Gizmos
+
 }
